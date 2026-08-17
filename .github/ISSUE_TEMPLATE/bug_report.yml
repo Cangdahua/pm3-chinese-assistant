@@ -1,0 +1,45 @@
+name: Bug 报告
+description: 报告可公开复现且不包含敏感数据的问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: 安全漏洞请使用私密安全报告，不要在 issue 中附带真实 UID、密钥、dump 或串口日志。
+  - type: input
+    id: version
+    attributes:
+      label: 版本或 commit
+      placeholder: v0.3.1 或完整 commit SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      placeholder: macOS 版本、Python 版本、PM3 硬件与固件族
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请只提供脱敏且可公开的最小复现。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期与实际结果
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 提交确认
+      options:
+        - label: 我已移除真实卡片数据、密钥、设备标识、账号和其他敏感信息。
+          required: true
+        - label: 我只在自有或明确获授权的设备与卡片上复现了此问题。
+          required: true

@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python safety tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pm3-qml-client/requirements.txt
+      - run: python -m pip install -r pm3-qml-client/requirements.txt
+      - run: PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s pm3-qml-client/tests -p 'test_*.py'
+      - name: Parse engineering Python tools
+        run: python -c "import ast, pathlib; paths = [*pathlib.Path('tools').glob('*.py'), *pathlib.Path('pm3-qml-client/tools').glob('*.py')]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in paths]"
+
+  frontend-prototype:
+    name: Experimental frontend lint and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prototype:lint
+      - run: pnpm prototype:build
+
+  rust-prototype:
+    name: Experimental Tauri fmt, test and check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Tauri Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            librsvg2-dev \
+            wget
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master 2026-08-17
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+
+  release-audit:
+    name: Release safety and provenance audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Apply the locked PM3 Easy compatibility patch
+        run: |
+          git -C compat-clients/iceman-ice_v3.1.0 apply --check "$GITHUB_WORKSPACE/packaging/compat/iceman-2954e1d-pm3-easy.patch"
+          git -C compat-clients/iceman-ice_v3.1.0 apply "$GITHUB_WORKSPACE/packaging/compat/iceman-2954e1d-pm3-easy.patch"
+      - name: Recreate deterministic generated runtime modules
+        working-directory: compat-clients/iceman-ice_v3.1.0/client
+        run: |
+          awk -f default_keys_dic2lua.awk default_keys.dic > lualibs/mf_default_keys.lua
+          awk -f usb_cmd_h2lua.awk ../include/usb_cmd.h > lualibs/usb_cmd.lua
+      - run: python tools/release_safety.py audit pm3-qml-client --source-tree
+      - run: python tools/release_safety.py verify-manifest --allow-missing-runtime
+      - run: python tools/release_safety.py audit-runtime --allow-missing-binary
+      - name: Parse macOS release scripts
+        run: bash -n tools/bootstrap_compat_client.sh tools/build_macos_app.sh
+
+  source-baseline:
+    name: Complete source-only archive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: recursive
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: python tools/release_safety.py audit-source-release
+      - run: python tools/build_source_archive.py --version ci
+      - name: Verify complete source archive
+        run: |
+          cd release/source
+          sha256sum --check pm3-chinese-assistant-ci-source.tar.gz.sha256
+          tar -tzf pm3-chinese-assistant-ci-source.tar.gz > archive-contents.txt
+          grep -q '/SOURCE_PROVENANCE.json$' archive-contents.txt
+          grep -q '/compat-clients/iceman-ice_v3.1.0/LICENSE.txt$' archive-contents.txt
+          grep -q '/packaging/compat/iceman-2954e1d-pm3-easy.patch$' archive-contents.txt
+          if grep -Eq '\.(dmg|app\.zip)$|/client/proxmark3$' archive-contents.txt; then
+            echo "binary artifact found in source archive" >&2
+            exit 1
+          fi

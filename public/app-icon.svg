@@ -1,0 +1,11 @@
+<!-- Original PM3 Chinese Assistant artwork, MIT licensed.
+     Copyright (c) 2026 PM3 Chinese Assistant contributors.
+     Platform icons in src-tauri/icons are generated derivatives. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>PM3 Chinese Assistant</title>
+  <rect width="512" height="512" rx="96" fill="#111827"/>
+  <path d="M112 312V164h132c54 0 90 31 90 78s-36 80-90 80h-58v66h-74zm74-56h50c20 0 33-12 33-31 0-18-13-29-33-29h-50v60z" fill="#14b8a6"/>
+  <path d="M288 388V164h56l56 81 56-81h56v224h-66V270l-39 55h-14l-39-55v118h-66z" fill="#f8fafc"/>
+  <circle cx="136" cy="388" r="26" fill="#f59e0b"/>
+  <circle cx="424" cy="108" r="26" fill="#ef4444"/>
+</svg>

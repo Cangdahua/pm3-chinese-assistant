@@ -1,0 +1,22 @@
+[package]
+name = "pm3-studio"
+version = "0.1.0"
+description = "EXPERIMENTAL frozen PM3 prototype; not for release"
+authors = ["PM3 Studio"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/Cangdahua/pm3-chinese-assistant"
+
+[lib]
+name = "pm3_studio_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+encoding_rs = "0.8"
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+wait-timeout = "0.2"

@@ -1,0 +1,251 @@
+diff --git a/client/proxmark3.c b/client/proxmark3.c
+index 461a30c..9d4b472 100644
+--- a/client/proxmark3.c
++++ b/client/proxmark3.c
+@@ -12,6 +12,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <stdint.h>
+ #include <pthread.h>
+ #include <unistd.h>
+ #include <readline/readline.h>
+@@ -61,7 +62,94 @@ struct receiver_arg {
+ };
+ 
+ byte_t rx[sizeof(UsbCommand)];
+-byte_t* prx = rx;
++
++#define VENDOR_FRAME_HEADER_SIZE 16
++#define VENDOR_RX_BUFFER_SIZE (sizeof(UsbCommand) * 4)
++
++static byte_t vendor_rx[VENDOR_RX_BUFFER_SIZE];
++static size_t vendor_rx_len = 0;
++
++static uint16_t read_le16(const byte_t *data) {
++	return (uint16_t)data[0] | ((uint16_t)data[1] << 8);
++}
++
++static uint32_t read_le32(const byte_t *data) {
++	return (uint32_t)data[0] |
++		((uint32_t)data[1] << 8) |
++		((uint32_t)data[2] << 16) |
++		((uint32_t)data[3] << 24);
++}
++
++static bool looks_like_vendor_frame(const byte_t *data, size_t len) {
++	if (len < 4) {
++		return false;
++	}
++
++	uint16_t wire_cmd = read_le16(data);
++	uint16_t payload_len = read_le16(data + 2);
++	return (wire_cmd & 0x8000) && payload_len <= USB_CMD_DATA_SIZE;
++}
++
++static void handle_vendor_frame(const byte_t *frame) {
++	uint16_t wire_cmd = read_le16(frame);
++	uint16_t payload_len = read_le16(frame + 2);
++	size_t copy_len = payload_len < USB_CMD_DATA_SIZE ? payload_len : USB_CMD_DATA_SIZE;
++	UsbCommand converted;
++
++	memset(&converted, 0x00, sizeof(converted));
++	converted.cmd = wire_cmd & 0x7fff;
++	converted.arg[0] = read_le32(frame + 4);
++	converted.arg[1] = read_le32(frame + 8);
++	converted.arg[2] = read_le32(frame + 12);
++	memcpy(converted.d.asBytes, frame + VENDOR_FRAME_HEADER_SIZE, copy_len);
++	UsbCommandReceived(&converted);
++}
++
++static void consume_vendor_rx(size_t consumed) {
++	if (consumed >= vendor_rx_len) {
++		vendor_rx_len = 0;
++		return;
++	}
++
++	memmove(vendor_rx, vendor_rx + consumed, vendor_rx_len - consumed);
++	vendor_rx_len -= consumed;
++}
++
++static void process_received_bytes(const byte_t *data, size_t len) {
++	if (len == 0) {
++		return;
++	}
++
++	if (len > VENDOR_RX_BUFFER_SIZE - vendor_rx_len) {
++		vendor_rx_len = 0;
++	}
++
++	memcpy(vendor_rx + vendor_rx_len, data, len);
++	vendor_rx_len += len;
++
++	while (vendor_rx_len > 0) {
++		if (looks_like_vendor_frame(vendor_rx, vendor_rx_len)) {
++			uint16_t payload_len = read_le16(vendor_rx + 2);
++			size_t frame_len = VENDOR_FRAME_HEADER_SIZE + payload_len;
++
++			if (vendor_rx_len < frame_len) {
++				break;
++			}
++
++			handle_vendor_frame(vendor_rx);
++			consume_vendor_rx(frame_len);
++			continue;
++		}
++
++		if (vendor_rx_len >= sizeof(UsbCommand)) {
++			UsbCommandReceived((UsbCommand*)vendor_rx);
++			consume_vendor_rx(sizeof(UsbCommand));
++			continue;
++		}
++
++		break;
++	}
++}
+ 
+ #if defined(__linux__)
+ static void showBanner(void){
+@@ -105,15 +193,9 @@ static void *uart_receiver(void *targ) {
+ 	
+ 	while (arg->run) {
+ 		rxlen = 0;
+-		if (uart_receive(sp, prx, sizeof(UsbCommand) - (prx-rx), &rxlen)) {
+-			prx += rxlen;
+-			if (prx-rx < sizeof(UsbCommand)) {
+-				continue;
+-			}
+-			
+-			UsbCommandReceived((UsbCommand*)rx);
++		if (uart_receive(sp, rx, sizeof(rx), &rxlen)) {
++			process_received_bytes(rx, rxlen);
+ 		}
+-		prx = rx;
+ 
+ 		bool tmpsignal;
+ 		__atomic_load(&txcmd_pending, &tmpsignal, __ATOMIC_SEQ_CST);
+@@ -151,8 +233,10 @@ void main_loop(char *script_cmds_file, bool usb_present) {
+ 		rarg.run = 1;
+ 		//
+ 		pthread_create(&reader_thread, NULL, &uart_receiver, &rarg);
+-		// cache Version information now:
+-		CmdVersion(NULL);
++		if (!script_cmds_file) {
++			// cache Version information now:
++			CmdVersion(NULL);
++		}
+ 	}
+ 
+ 	FILE *script_file = NULL;
+@@ -178,11 +262,13 @@ void main_loop(char *script_cmds_file, bool usb_present) {
+ 		
+ 			// usb and the reader_thread is NULL,  create a new reader thread.
+ 			if (usb_present && !offline) {
+-				rarg.run = 1;
+-				pthread_create(&reader_thread, NULL, &uart_receiver, &rarg);
+-				// cache Version information now:
+-				CmdVersion(NULL);
+-			}
++					rarg.run = 1;
++					pthread_create(&reader_thread, NULL, &uart_receiver, &rarg);
++					if (!script_cmds_file) {
++						// cache Version information now:
++						CmdVersion(NULL);
++					}
++				}
+ 		}
+ 
+ 		// If there is a script file
+diff --git a/client/ui.c b/client/ui.c
+index 76d751e..d795429 100644
+--- a/client/ui.c
++++ b/client/ui.c
+@@ -10,6 +10,7 @@
+ //-----------------------------------------------------------------------------
+ 
+ #include "ui.h"
++#include <string.h>
+ 
+ double CursorScaleFactor = 1;
+ int PlotGridX=0, PlotGridY=0, PlotGridXdefault= 64, PlotGridYdefault= 64, CursorCPos= 0, CursorDPos= 0;
+@@ -64,6 +65,7 @@ void PrintAndLog(char *fmt, ...) {
+ 	va_end(argptr);
+ 	printf("\n");
+ 
++#ifdef RL_STATE_READCMD
+ 	if (need_hack) {
+ 		rl_restore_prompt();
+ 		rl_replace_line(saved_line, 0);
+@@ -71,6 +73,7 @@ void PrintAndLog(char *fmt, ...) {
+ 		rl_redisplay();
+ 		free(saved_line);
+ 	}
++#endif
+ 	
+ 	if (logging && logfile) {
+ 		vfprintf(logfile, fmt, argptr2);
+diff --git a/uart/uart_posix.c b/uart/uart_posix.c
+index 8d28414..3faab40 100644
+--- a/uart/uart_posix.c
++++ b/uart/uart_posix.c
+@@ -46,6 +46,7 @@
+ #include <limits.h>
+ #include <sys/time.h>
+ #include <errno.h>
++#include <stdlib.h>
+ 
+ 
+ typedef struct termios term_info;
+@@ -64,6 +65,22 @@ const struct timeval timeout = {
+ // Overall timeout for receives -- 300ms
+ #define RECV_TOTAL_TIMEOUT_MS 300
+ 
++static void uart_apply_modem_line(int fd, const char *env_name, int bit)
++{
++  const char *mode = getenv(env_name);
++  int bits = bit;
++
++  if (!mode || mode[0] == '\0') {
++    return;
++  }
++
++  if (mode[0] == '1') {
++    ioctl(fd, TIOCMBIS, &bits);
++  } else if (mode[0] == '0') {
++    ioctl(fd, TIOCMBIC, &bits);
++  }
++}
++
+ serial_port uart_open(const char* pcPortName)
+ {
+   serial_port_unix* sp = malloc(sizeof(serial_port_unix));
+@@ -120,10 +137,26 @@ serial_port uart_open(const char* pcPortName)
+   // Flush all lingering data that may exist
+   tcflush(sp->fd, TCIOFLUSH);
+ 
+-  // set speed, works for UBUNTU 14.04
+-  bool err = uart_set_speed(sp, 460800);
++  const char *baud_env = getenv("PM3_LEGACY_BAUD");
++  uint32_t baud = 9600;
++  if (baud_env && baud_env[0] != '\0') {
++    baud = strtoul(baud_env, NULL, 10);
++  }
++
++  bool err = uart_set_speed(sp, baud);
+   if (!err)
+-	  uart_set_speed(sp, 115200);  		  
++	  uart_set_speed(sp, 115200);
++  uart_apply_modem_line(sp->fd, "PM3_LEGACY_DTR", TIOCM_DTR);
++  uart_apply_modem_line(sp->fd, "PM3_LEGACY_RTS", TIOCM_RTS);
++
++  const char *delay_env = getenv("PM3_LEGACY_OPEN_DELAY_MS");
++  if (delay_env && delay_env[0] != '\0') {
++    uint32_t delay_ms = strtoul(delay_env, NULL, 10);
++    if (delay_ms > 0) {
++      usleep(delay_ms * 1000);
++    }
++  }
++  tcflush(sp->fd, TCIOFLUSH);
+   return sp;
+ }
+ 

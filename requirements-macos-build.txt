@@ -1,0 +1,2 @@
+-r pm3-qml-client/requirements.txt
+pyinstaller==6.21.0

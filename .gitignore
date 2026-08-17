@@ -1,0 +1,123 @@
+# Operating-system and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.cer
+*.mobileprovision
+AuthKey_*.p8
+.npmrc
+.pypirc
+.netrc
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+*.egg-info/
+
+# Node / Vite
+/node_modules/
+/.pnpm-store/
+/dist/
+/dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Rust / Tauri
+/target/
+/src-tauri/target/
+
+# Local builds and release artifacts
+/build/
+/release/
+/artifacts/
+*.dmg
+*.dmg.sha256
+*.app.zip
+*.app.zip.sha256
+
+# PM3 runtime logs, captures, private card data and workspaces
+/logs/
+/hardware-captures/
+/local-private/
+*.log
+.history
+**/.history
+**/dumpdata.bin
+**/dumpkeys.bin
+**/dumpkeys-status.json
+**/nonces.bin
+**/trace.bin
+**/*.dump
+**/*.mfd
+**/*.eml
+**/selected_data.eml
+**/selected_data*.bin
+**/pending_write_data.bin
+**/pm3_localdict_*.dic
+**/pm3_my_key_library.dic
+**/card-backups/
+**/workspace-v2/
+**/transaction.json
+**/readback.bin
+**/*.sqlite-journal
+**/*.sqlite-shm
+**/*.sqlite-wal
+**/before_magic_write_*
+**/before_ordinary_write_*
+**/before_blank_reset_*
+
+# Local assistant/spreadsheet output is not part of this product.
+/.codex_spreadsheet_work/
+/outputs/
+
+# Historical/reference clients and vendor archives remain local only.
+# The active client is an explicit submodule; see .gitmodules and
+# docs/COMPAT_CLIENT_PROVENANCE.md.
+/compat-clients/*/
+!/compat-clients/iceman-ice_v3.1.0/
+**/.git/
+/vendor-win/
+/vendor-win-full/
+/vendor-gui-*.png
+/vendor*-ui-tree.tsv
+/windows-screen.png
+
+# Local UI review captures are generated artifacts, not release inputs.
+/pm3-cn-*.png
+/pm3-studio-*.png
+
+# Never include ad-hoc samples/captures from the active nested checkout.
+/compat-clients/iceman-ice_v3.1.0/client/*.html
+/compat-clients/iceman-ice_v3.1.0/client/sample.*
+/compat-clients/iceman-ice_v3.1.0/client/pm3_public_key_library.dic

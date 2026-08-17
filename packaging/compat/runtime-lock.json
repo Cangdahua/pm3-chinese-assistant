@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "upstream": {
+    "url": "https://github.com/iceman1001/proxmark3.git",
+    "commit": "2954e1d0401e2b9588f9333d9ab931b7ddb37447"
+  },
+  "patch": {
+    "path": "packaging/compat/iceman-2954e1d-pm3-easy.patch",
+    "sha256": "c7ac2bf0acfb76ba27f8edb8f3bc27fe525c1f0eff1b0f5bf13ef5f43d31b5a7"
+  },
+  "runtime": {
+    "path": "compat-clients/iceman-ice_v3.1.0/client/proxmark3",
+    "sha256": "3b9edcfb907f05e9e536aa2fd7badc485110be8d4aba983013026a9e1042ea3d",
+    "architectures": [
+      "arm64"
+    ],
+    "minimum_macos": "11.0",
+    "console_dependency": "/usr/lib/libedit.3.dylib"
+  },
+  "generated_assets": [
+    {
+      "path": "compat-clients/iceman-ice_v3.1.0/client/lualibs/usb_cmd.lua",
+      "sha256": "b3cb81d2d655efa5e8c1facc6641bbd3f38c25cf97814c1c307c0ef643c76530",
+      "generated_from": [
+        "compat-clients/iceman-ice_v3.1.0/include/usb_cmd.h",
+        "compat-clients/iceman-ice_v3.1.0/client/usb_cmd_h2lua.awk"
+      ]
+    },
+    {
+      "path": "compat-clients/iceman-ice_v3.1.0/client/lualibs/mf_default_keys.lua",
+      "sha256": "b007cdf128507177c695c085663005045ee9d2e185b353b8d7e2ab3682900c60",
+      "generated_from": [
+        "compat-clients/iceman-ice_v3.1.0/client/default_keys.dic",
+        "compat-clients/iceman-ice_v3.1.0/client/default_keys_dic2lua.awk"
+      ]
+    }
+  ]
+}
